@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: permissions_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: permissions_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+  nats:
+    image: nats:latest
+    container_name: permissions_nats
+    restart: unless-stopped
+    ports:
+      - '4222:4222'
+    command:
+      - js
+volumes:
+  pg_data:
