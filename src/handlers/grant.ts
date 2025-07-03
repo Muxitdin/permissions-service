@@ -1,15 +1,29 @@
 import { grantPermission, listPermissions } from "../db/queries";
-import { GrantPayload, ErrorCode } from "../types";
+import { GrantPayload, ErrorCode, GrantResponse } from "../lib/types";
+import { makeErrorResponse } from "../lib/utils";
 import { setCachedPermissions } from "../nats/kv";
-export async function handleGrant(payload: GrantPayload) {
+import { logEvent } from "../lib/logger";
+
+export async function handleGrant(payload: GrantPayload): Promise<GrantResponse> {
+    logEvent("grant:input", payload);
+
     try {
         await grantPermission(payload.apiKey, payload.module, payload.action);
+        logEvent("grant:db_success", payload);
+
         const updated = await listPermissions(payload.apiKey);
-        await setCachedPermissions(payload.apiKey, updated);
+        logEvent("grant:db_fetch_updated", { apiKey: payload.apiKey, permissions: updated });
+
+        try {
+            await setCachedPermissions(payload.apiKey, updated);
+            logEvent("grant:cache_updated", { apiKey: payload.apiKey });
+        } catch (cacheErr) {
+            logEvent("grant:cache_update_failed", { apiKey: payload.apiKey, error: cacheErr });
+        }
+
         return { status: "ok" };
     } catch (e) {
-        return {
-            error: { code: ErrorCode.db_error, message: "Database error" },
-        };
+        logEvent("grant:db_error", { error: e });
+        return makeErrorResponse(ErrorCode.db_error, "Database error");
     }
 }
